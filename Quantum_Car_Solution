@@ -1,0 +1,238 @@
+from abc import ABC, abstractmethod
+
+
+# ───────────────────────── Engine Interface ─────────────────────────
+
+class Engine(ABC):
+    def __init__(self):
+        self._speed = 0
+
+    def get_speed(self):
+        return self._speed
+
+    def increase(self):
+        self._speed += 1
+
+    def decrease(self):
+        if self._speed > 0:
+            self._speed -= 1
+
+    @abstractmethod
+    def notify_speed(self, car_speed):
+        pass
+
+    @abstractmethod
+    def start(self):
+        pass
+
+    @abstractmethod
+    def stop(self):
+        pass
+
+
+# ───────────────────────── Concrete Engines ─────────────────────────
+
+class GasEngine(Engine):
+    def start(self):
+        print("Gas engine started.")
+
+    def stop(self):
+        print("Gas engine stopped.")
+
+    def notify_speed(self, car_speed):
+        diff = car_speed - self._speed
+        if diff > 0:
+            for _ in range(diff):
+                self.increase()
+        else:
+            for _ in range(abs(diff)):
+                self.decrease()
+        print(f"  [Gas Engine] internal speed adjusted to {self._speed} km/h")
+
+
+class ElectricEngine(Engine):
+    def start(self):
+        print("Electric engine started.")
+
+    def stop(self):
+        print("Electric engine stopped.")
+
+    def notify_speed(self, car_speed):
+        diff = car_speed - self._speed
+        if diff > 0:
+            for _ in range(diff):
+                self.increase()
+        else:
+            for _ in range(abs(diff)):
+                self.decrease()
+        print(f"  [Electric Engine] internal speed adjusted to {self._speed} km/h")
+
+
+class HybridEngine(Engine):
+    def __init__(self):
+        super().__init__()
+        self._gas = GasEngine()
+        self._electric = ElectricEngine()
+
+    def start(self):
+        print("Hybrid engine started (Electric mode by default).")
+        self._electric.start()
+
+    def stop(self):
+        print("Hybrid engine stopping.")
+        self._gas.stop()
+        self._electric.stop()
+
+    def notify_speed(self, car_speed):
+        self._speed = car_speed
+        if car_speed < 50:
+            print(f"  [Hybrid] Speed {car_speed} km/h → using Electric engine")
+            self._electric.notify_speed(car_speed)
+            # Ensure gas is at 0 (not running)
+            self._gas._speed = 0
+        else:
+            print(f"  [Hybrid] Speed {car_speed} km/h → using Gas engine")
+            self._gas.notify_speed(car_speed)
+            # Ensure electric is at 0 (not running)
+            self._electric._speed = 0
+
+    def increase(self):
+        self._speed += 1
+
+    def decrease(self):
+        if self._speed > 0:
+            self._speed -= 1
+
+
+# ───────────────────────── Car ─────────────────────────
+
+class Car:
+    MAX_SPEED = 200
+    SPEED_STEP = 20
+
+    def __init__(self, engine: Engine):
+        self._engine = engine
+        self._speed = 0
+        self._running = False
+
+    def set_engine(self, engine: Engine):
+        """Replace the engine."""
+        print(f"\n[Car] Engine replaced with {type(engine).__name__}.")
+        self._engine = engine
+        self._engine.notify_speed(self._speed)
+
+    def start(self):
+        if self._running:
+            print("[Car] Already running.")
+            return
+        self._running = True
+        self._speed = 0
+        self._engine.start()
+        print(f"[Car] Started. Speed: {self._speed} km/h")
+
+    def stop(self):
+        if not self._running:
+            print("[Car] Already stopped.")
+            return
+        if self._speed != 0:
+            print(f"[Car] Cannot stop — speed must be 0 first. Current: {self._speed} km/h")
+            return
+        self._running = False
+        self._engine.stop()
+        print("[Car] Stopped.")
+
+    def accelerate(self):
+        if not self._running:
+            print("[Car] Start the car first.")
+            return
+        if self._speed >= self.MAX_SPEED:
+            print(f"[Car] Already at max speed ({self.MAX_SPEED} km/h).")
+            return
+        self._speed = min(self._speed + self.SPEED_STEP, self.MAX_SPEED)
+        print(f"[Car] Accelerating → {self._speed} km/h")
+        self._engine.notify_speed(self._speed)
+
+    def brake(self):
+        if not self._running:
+            print("[Car] Start the car first.")
+            return
+        if self._speed == 0:
+            print("[Car] Already at 0 km/h.")
+            return
+        self._speed = max(self._speed - self.SPEED_STEP, 0)
+        print(f"[Car] Braking → {self._speed} km/h")
+        self._engine.notify_speed(self._speed)
+
+
+# ───────────────────────── Car Factory ─────────────────────────
+
+class CarFactory:
+    ENGINE_TYPES = {
+        "gas": GasEngine,
+        "electric": ElectricEngine,
+        "hybrid": HybridEngine,
+    }
+
+    @staticmethod
+    def create_car(engine_type: str) -> Car:
+        engine_type = engine_type.lower()
+        if engine_type not in CarFactory.ENGINE_TYPES:
+            raise ValueError(f"Unknown engine type: '{engine_type}'. Choose from: gas, electric, hybrid")
+        engine = CarFactory.ENGINE_TYPES[engine_type]()
+        print(f"\n[Factory] Creating car with {engine_type.capitalize()} engine.")
+        return Car(engine)
+
+    @staticmethod
+    def replace_engine(car: Car, engine_type: str):
+        engine_type = engine_type.lower()
+        if engine_type not in CarFactory.ENGINE_TYPES:
+            raise ValueError(f"Unknown engine type: '{engine_type}'.")
+        new_engine = CarFactory.ENGINE_TYPES[engine_type]()
+        car.set_engine(new_engine)
+
+
+# ───────────────────────── Main / Demo ─────────────────────────
+
+def demo_car(label, car):
+    print(f"\n{'='*50}")
+    print(f"  DEMO: {label}")
+    print(f"{'='*50}")
+    car.start()
+    car.accelerate()   # 20
+    car.accelerate()   # 40
+    car.accelerate()   # 60
+    car.brake()        # 40
+    car.brake()        # 20
+    car.brake()        # 0
+    car.stop()
+
+
+if __name__ == "__main__":
+    factory = CarFactory()
+
+    # Gas Car
+    gas_car = factory.create_car("gas")
+    demo_car("Gas Car", gas_car)
+
+    # Electric Car
+    electric_car = factory.create_car("electric")
+    demo_car("Electric Car", electric_car)
+
+    # Hybrid Car
+    hybrid_car = factory.create_car("hybrid")
+    demo_car("Hybrid Car", hybrid_car)
+
+    # Engine Replacement Demo
+    print(f"\n{'='*50}")
+    print("  DEMO: Engine Replacement")
+    print(f"{'='*50}")
+    car = factory.create_car("gas")
+    car.start()
+    car.accelerate()   # 20
+    car.accelerate()   # 40
+    factory.replace_engine(car, "electric")
+    car.accelerate()   # 60
+    car.brake()        # 40
+    car.brake()        # 20
+    car.brake()        # 0
+    car.stop()
